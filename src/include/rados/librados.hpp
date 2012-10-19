@@ -144,6 +144,13 @@ namespace librados
     void assert_version(uint64_t ver);
 
     /**
+     * Guard operation with a check that the object exists or does not exist
+     *
+     * @param exist whether to succeed when the object exists or does not exist
+     */
+    void assert_exists(bool exists);
+
+    /**
      * get key/value paris for specified keys
      *
      * @param assertions [in] comparison assertions

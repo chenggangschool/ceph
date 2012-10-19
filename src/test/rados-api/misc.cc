@@ -338,3 +338,38 @@ TEST(LibRadosMisc, CloneRange) {
   rados_ioctx_destroy(ioctx);
   ASSERT_EQ(0, destroy_one_pool(pool_name, &cluster));
 }
+
+TEST(LibRadosMisc, ExistsPP) {
+  Rados cluster;
+  std::string pool_name = get_temp_pool_name();
+  ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
+  IoCtx ioctx;
+  ASSERT_EQ(0, cluster.ioctx_create(pool_name.c_str(), ioctx));
+  char buf[64];
+  memset(buf, 0xcc, sizeof(buf));
+  bufferlist bl;
+  bl.append(buf, sizeof(buf));
+
+  ObjectWriteOperation o;
+  o.assert_exists(true);
+  o.write(0, bl);
+  ASSERT_EQ(-ENOENT, ioctx.operate("foo", &o));
+
+  ObjectWriteOperation o2;
+  o2.assert_exists(false);
+  o2.write(0, bl);
+  ASSERT_EQ(0, ioctx.operate("foo", &o2));
+
+  ObjectWriteOperation o3;
+  o3.assert_exists(false);
+  o3.write(0, bl);
+  ASSERT_EQ(-EEXIST, ioctx.operate("foo", &o3));
+
+  ObjectWriteOperation o4;
+  o4.assert_exists(true);
+  o4.write(0, bl);
+  ASSERT_EQ(0, ioctx.operate("foo", &o4));
+
+  ioctx.close();
+  ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
+}
