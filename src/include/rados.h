@@ -172,6 +172,7 @@ enum {
 
 	/* versioning */
 	CEPH_OSD_OP_ASSERT_VER = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_DATA | 8,
+	CEPH_OSD_OP_ASSERT_EXISTS = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_DATA | 9,
 
 	/* write */
 	CEPH_OSD_OP_WRITE     = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 1,
@@ -366,6 +367,9 @@ struct ceph_osd_op {
 			__u8 cmp_op;       /* CEPH_OSD_CMPXATTR_OP_* */
 			__u8 cmp_mode;     /* CEPH_OSD_CMPXATTR_MODE_* */
 		} __attribute__ ((packed)) xattr;
+		struct {
+			__u8 exists;       /* true (nonzer) or false (zero) */
+		} __attribute__ ((packed)) assert_exists;
 		struct {
 			__u8 class_len;
 			__u8 method_len;

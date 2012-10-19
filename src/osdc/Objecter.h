@@ -218,6 +218,10 @@ struct ObjectOperation {
   }
 
   // object data
+  void assert_exists(bool exists) {
+    add_op(CEPH_OSD_OP_ASSERT_EXISTS);
+    ops.rbegin()->op.assert_exists.exists = exists;
+  }
   void read(uint64_t off, uint64_t len, bufferlist *pbl, int *prval) {
     bufferlist bl;
     add_data(CEPH_OSD_OP_READ, off, len, bl);

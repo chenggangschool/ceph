@@ -716,7 +716,9 @@ void ReplicatedPG::do_op(OpRequestRef op)
     return;
   }
   dout(25) << __func__ << ": object " << obc->obs.oi.soid
-	   << " has oi of " << obc->obs.oi << dendl;
+	   << " has oi of " << obc->obs.oi
+	   << " exists=" << obc->obs.exists
+	   << dendl;
   
   bool ok;
   dout(10) << "do_op mode is " << mode << dendl;
@@ -2003,8 +2005,20 @@ int ReplicatedPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
 	  result = -ERANGE;
 	else if (ver > oi.user_version.version)
 	  result = -EOVERFLOW;
-	break;
       }
+      break;
+
+    case CEPH_OSD_OP_ASSERT_EXISTS:
+      if (!!op.assert_exists.exists != !!obs.exists) {
+	dout(10) << " assert_exists=" << (int)op.assert_exists.exists
+		 << " != actual exists=" << (int)obs.exists
+		 << dendl;
+	if (obs.exists)
+	  return -EEXIST;
+	else
+	  return -ENOENT;
+      }
+      break;
 
     case CEPH_OSD_OP_ASSERT_SRC_VERSION:
       {
