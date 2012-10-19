@@ -5693,8 +5693,13 @@ int OSD::init_op_flags(MOSDOp *op)
 
 	ClassHandler::ClassData *cls;
 	int r = class_handler->open_class(cname, &cls);
-	if (r)
+	if (r) {
+	  if (r == -ENOENT)
+	    r = -EOPNOTSUPP;
+	  else
+	    r = -EIO;
 	  return r;
+	}
 	int flags = cls->get_method_flags(mname.c_str());
 	is_read = flags & CLS_METHOD_RD;
 	is_write = flags & CLS_METHOD_WR;
