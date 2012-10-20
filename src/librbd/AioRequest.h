@@ -101,7 +101,7 @@ namespace librbd {
     virtual ~AbstractWrite() {}
     virtual bool should_complete(int r);
     virtual int send();
-    void guard_write();
+    bool guard_write();
 
     bool has_parent() const {
       return !m_object_image_extents.empty();
@@ -111,20 +111,21 @@ namespace librbd {
     /**
      * Writes go through the following state machine to
      * deal with layering:
-     *                           need copyup
-     * LIBRBD_AIO_CHECK_EXISTS ---------------> LIBRBD_AIO_WRITE_COPYUP
-     *           |                                       |
-     *           | no overlap or object exists           | parent data read
-     *           |                                       |
-     *           v                                       |
-     * LIBRBD_AIO_WRITE_FINAL <--------------------------/
+     *                           
+     * WRITE_GUARDED ----------------------------> WRITE_COPYUP
+     *     |      \                        (enoent)  ^   |
+     *     |       \---------> WRITE_STAT ----------/    |
+     *     |                     |                       |
+     *     v                     v                       |
+     *    done <-------------- WRITE_FINAL <-------------/ parent data read
      *
      * By default images start in LIBRBD_AIO_WRITE_FINAL.
      * If the write may need a copyup, it will start in
-     * LIBRBD_AIO_WRITE_CHECK_EXISTS instead.
+     * LIBRBD_AIO_WRITE_GUARDED instead.
      */
     enum write_state_d {
-      LIBRBD_AIO_WRITE_CHECK_EXISTS,
+      LIBRBD_AIO_WRITE_GUARDED,
+      LIBRBD_AIO_WRITE_STAT,
       LIBRBD_AIO_WRITE_COPYUP,
       LIBRBD_AIO_WRITE_FINAL
     };
@@ -135,9 +136,10 @@ namespace librbd {
     write_state_d m_state;
     vector<pair<uint64_t,uint64_t> > m_object_image_extents;
     uint64_t m_parent_overlap;
-    librados::ObjectReadOperation m_read;
-    librados::ObjectWriteOperation m_write;
-    librados::ObjectWriteOperation m_copyup;
+    librados::ObjectWriteOperation m_write;         ///< the write
+    librados::ObjectWriteOperation m_write_guarded; ///< the write + assert_exists, if has_parent
+    librados::ObjectReadOperation m_stat;           ///< check exists, if has_parent, and old osd
+    librados::ObjectWriteOperation m_copyup;        ///< the copyup, if triggered
 
   private:
     void send_copyup();
@@ -157,8 +159,10 @@ namespace librbd {
 		      snapc, snap_id,
 		      completion, false),
 	m_write_data(data) {
-      guard_write();
       m_write.write(m_object_off, data);
+      if (guard_write()) {
+	m_write_guarded.write(m_object_off, data);
+      }
     }
     virtual ~AioWrite() {}
 
@@ -209,8 +213,10 @@ namespace librbd {
 		      objectx, object_overlap,
 		      snapc, snap_id, completion,
 		      true) {
-      guard_write();
       m_write.truncate(object_off);
+      if (guard_write()) {
+	m_write_guarded.truncate(object_off);
+      }
     }
     virtual ~AioTruncate() {}
 
@@ -232,8 +238,10 @@ namespace librbd {
 		      objectx, object_overlap,
 		      snapc, snap_id, completion,
 		      true) {
-      guard_write();
       m_write.zero(object_off, object_len);
+      if (guard_write()) {
+	m_write_guarded.zero(object_off, object_len);
+      }
     }
     virtual ~AioZero() {}
 

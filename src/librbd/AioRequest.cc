@@ -116,10 +116,9 @@ namespace librbd {
 			       const ::SnapContext &snapc, librados::snap_t snap_id,
 			       Context *completion,
 			       bool hide_enoent)
-    : AioRequest(ictx, oid, object_no, object_off, len, snap_id, completion, hide_enoent)
+    : AioRequest(ictx, oid, object_no, object_off, len, snap_id, completion, hide_enoent),
+      m_state(LIBRBD_AIO_WRITE_FINAL)
   {
-    m_state = LIBRBD_AIO_WRITE_FINAL;
-
     m_object_image_extents = objectx;
     m_parent_overlap = object_overlap;
 
@@ -132,16 +131,16 @@ namespace librbd {
     m_ioctx.selfmanaged_snap_set_write_ctx(snapc.seq.val, snaps);
   }
 
-  void AbstractWrite::guard_write()
+  bool AbstractWrite::guard_write()
   {
     if (has_parent()) {
-      m_state = LIBRBD_AIO_WRITE_CHECK_EXISTS;
-      m_read.stat(NULL, NULL, NULL);
+      ldout(m_ictx->cct, 20) << __func__ << " will guard" << dendl;
+      m_state = LIBRBD_AIO_WRITE_GUARDED;
+      m_write_guarded.assert_exists(true);
+      return true;
     }
-    ldout(m_ictx->cct, 20) << __func__ << " has_parent = " << has_parent()
-			   << " m_state = " << m_state << " check exists = "
-			   << LIBRBD_AIO_WRITE_CHECK_EXISTS << dendl;
-      
+    ldout(m_ictx->cct, 20) << __func__ << " no guard" << dendl;
+    return false;
   }
 
   bool AbstractWrite::should_complete(int r)
@@ -151,13 +150,8 @@ namespace librbd {
 
     bool finished = true;
     switch (m_state) {
-    case LIBRBD_AIO_WRITE_CHECK_EXISTS:
-      ldout(m_ictx->cct, 20) << "WRITE_CHECK_EXISTS" << dendl;
-      if (r < 0 && r != -ENOENT) {
-	ldout(m_ictx->cct, 20) << "error checking for object existence" << dendl;
-	break;
-      }
-      finished = false;
+    case LIBRBD_AIO_WRITE_GUARDED:
+    case LIBRBD_AIO_WRITE_STAT:
       if (r == -ENOENT) {
 	Mutex::Locker l(m_ictx->snap_lock);
 	Mutex::Locker l2(m_ictx->parent_lock);
@@ -168,12 +162,32 @@ namespace librbd {
 
 	m_state = LIBRBD_AIO_WRITE_COPYUP;
 	read_from_parent(m_object_image_extents);
+	finished = false;
 	break;
       }
-      ldout(m_ictx->cct, 20) << "no need to read from parent" << dendl;
-      m_state = LIBRBD_AIO_WRITE_FINAL;
-      send();
+      if (r == -EOPNOTSUPP) {
+	ldout(m_ictx->cct, 20) << "osd doesn't support check_exists, stating object" << dendl;
+	m_state = LIBRBD_AIO_WRITE_STAT;
+	m_stat.stat(NULL, NULL, NULL);
+	finished = false;
+	send();
+	break;
+      }
+      if (r < 0) {
+	ldout(m_ictx->cct, 20) << "error on (guarded) write " << r << dendl;
+	break;
+      }
+      if (m_state == LIBRBD_AIO_WRITE_STAT) {
+	ldout(m_ictx->cct, 20) << "successful stat (no need to copyup)" << dendl;
+	finished = false;
+	m_state = LIBRBD_AIO_WRITE_FINAL;
+	finished = false;
+	send();
+      } else {
+	ldout(m_ictx->cct, 20) << "successful guarded write (no need to copyup)" << dendl;
+      }
       break;
+
     case LIBRBD_AIO_WRITE_COPYUP:
       ldout(m_ictx->cct, 20) << "WRITE_COPYUP" << dendl;
       m_state = LIBRBD_AIO_WRITE_FINAL;
@@ -182,10 +196,15 @@ namespace librbd {
       send_copyup();
       finished = false;
       break;
+
     case LIBRBD_AIO_WRITE_FINAL:
-      ldout(m_ictx->cct, 20) << "WRITE_FINAL" << dendl;
-      // nothing to do
+      if (r < 0) {
+	ldout(m_ictx->cct, 20) << "error on (plain) write " << r << dendl;
+      } else {
+	ldout(m_ictx->cct, 20) << "successful (plain) write" << dendl;
+      }
       break;
+
     default:
       lderr(m_ictx->cct) << "invalid request state: " << m_state << dendl;
       assert(0);
@@ -198,12 +217,26 @@ namespace librbd {
     librados::AioCompletion *rados_completion =
       librados::Rados::aio_create_completion(this, NULL, rados_req_cb);
     int r;
-    if (m_state == LIBRBD_AIO_WRITE_CHECK_EXISTS) {
-      assert(m_read.size());
-      r = m_ioctx.aio_operate(m_oid, rados_completion, &m_read, &m_read_data);
-    } else {
+
+    switch (m_state) {
+    case LIBRBD_AIO_WRITE_GUARDED:
+      assert(m_write_guarded.size());
+      r = m_ioctx.aio_operate(m_oid, rados_completion, &m_write_guarded);
+      break;
+
+    case LIBRBD_AIO_WRITE_STAT:
+      assert(m_stat.size());
+      r = m_ioctx.aio_operate(m_oid, rados_completion, &m_stat, &m_read_data);
+      break;
+
+    case LIBRBD_AIO_WRITE_FINAL:
       assert(m_write.size());
       r = m_ioctx.aio_operate(m_oid, rados_completion, &m_write);
+      break;
+
+    case LIBRBD_AIO_WRITE_COPYUP:
+      assert(0);
+      break;
     }
     rados_completion->release();
     return r;
