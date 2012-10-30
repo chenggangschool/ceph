@@ -24,8 +24,6 @@ public:
 
 RGWDNSResolver::~RGWDNSResolver()
 {
-  Mutex::Locker l(lock);
-
   list<res_state>::iterator iter;
   for (iter = states.begin(); iter != states.end(); ++iter) {
     struct __res_state *s = *iter;
@@ -76,13 +74,15 @@ int RGWDNSResolver::resolve_cname(const string& hostname, string& cname, bool *f
 
   int ret;
 
-  unsigned char buf[1024];
-  char host[256];
+#define LARGE_ENOUGH_DNS_BUFSIZE 1024
+  unsigned char buf[LARGE_ENOUGH_DNS_BUFSIZE];
+
+#define MAX_FQDN_SIZE 255
+  char host[MAX_FQDN_SIZE + 1];
   const char *origname = hostname.c_str();
-  int len = res_nquery(res, origname, C_IN, T_CNAME, buf, sizeof(buf));
   unsigned char *pt, *answer;
   unsigned char *answend;
-
+  int len = res_nquery(res, origname, C_IN, T_CNAME, buf, sizeof(buf));
   if (len < 0) {
     dout(20) << "res_query() failed" << dendl;
     ret = 0;
@@ -109,7 +109,6 @@ int RGWDNSResolver::resolve_cname(const string& hostname, string& cname, bool *f
 
   int type;
   GETSHORT(type, pt);
-  dout(0) << "type=" << type << dendl;
 
   if (type != T_CNAME) {
     dout(0) << "ERROR: failed response type: type=%d (was expecting " << T_CNAME << ")" << dendl;
