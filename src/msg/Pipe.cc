@@ -144,15 +144,6 @@ void Pipe::join_reader()
   reader_joining = false;
 }
 
-
-void Pipe::queue_received(Message *m, int priority)
-{
-  assert(pipe_lock.is_locked());
-  in_q->queue(m, priority);
-}
-
-
-
 int Pipe::accept()
 {
   ldout(msgr->cct,10) << "accept" << dendl;
@@ -1248,7 +1239,7 @@ void Pipe::reader()
       ldout(msgr->cct,10) << "reader got message "
 	       << m->get_seq() << " " << m << " " << *m
 	       << dendl;
-      queue_received(m);
+      in_q->queue(m, m->get_priority());
     } 
     
     else if (tag == CEPH_MSGR_TAG_CLOSE) {
