@@ -1201,13 +1201,15 @@ void Pipe::reader()
       int r = read_message(&m);
 
       pipe_lock.Lock();
-      
+
       if (!m) {
 	if (r < 0)
 	  fault(true);
 	continue;
       }
 
+      bool did_delay = false;
+    retry_delayed:
       if (state == STATE_CLOSED ||
 	  state == STATE_CONNECTING) {
 	msgr->dispatch_throttle_release(m->get_dispatch_throttle_size());
@@ -1227,6 +1229,35 @@ void Pipe::reader()
 	msgr->dispatch_throttle_release(m->get_dispatch_throttle_size());
 	m->put();
 	continue;
+      }
+
+      // inject artificially delay?
+      if (!did_delay &&
+	  msgr->cct->_conf->ms_inject_delay_probability > 0 &&
+	  msgr->cct->_conf->ms_inject_delay_type.find(ceph_entity_type_name(connection_state->peer_type)) != std::string::npos) {
+	double delay = msgr->cct->_conf->ms_inject_delay_max * (double)(rand() % 100) / 100.0;
+
+	utime_t head = in_q->peek_recv_stamp();
+	if (head != utime_t()) {
+	  utime_t until = head;
+	  until += delay;
+	  utime_t now = ceph_clock_now(msgr->cct);
+	  if (until > now) {
+	    ldout(msgr->cct,5) << "reader injecting " << delay << " sec delay, waiting " << (until - now) << dendl;
+	    cond.WaitUntil(pipe_lock, until);
+	    did_delay = true;
+	    goto retry_delayed;
+	  }
+	  ldout(msgr->cct,5) << "reader injecting " << delay << " sec delay, already behind by "
+			     << (now - until) << ", no sleep" << dendl;
+	} else {
+	  ldout(msgr->cct,5) << "reader injecting " << delay << " sec delay (lone msg)" << dendl;
+	  pipe_lock.Unlock();
+	  usleep(delay * 1000000);
+	  did_delay = true;
+	  pipe_lock.Lock();
+	  goto retry_delayed;
+	}
       }
 
       m->set_connection(connection_state->get());

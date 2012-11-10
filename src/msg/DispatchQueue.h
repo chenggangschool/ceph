@@ -45,6 +45,8 @@ struct IncomingQueue : public RefCountedObject {
   void discard_queue();
   void restart_queue();
 
+  utime_t peek_recv_stamp();
+
 private:
   friend class DispatchQueue;
   IncomingQueue(CephContext *cct, DispatchQueue *dq, SimpleMessenger *msgr, void *parent)

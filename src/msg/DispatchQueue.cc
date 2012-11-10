@@ -28,6 +28,18 @@
 #undef dout_prefix
 #define dout_prefix *_dout << "incomingqueue(" << this << " " << parent << ")."
 
+utime_t IncomingQueue::peek_recv_stamp()
+{
+  Mutex::Locker l(lock);
+  for (map<int,list<Message*> >::iterator p = in_q.begin(); p != in_q.end(); ++p) {
+    list<Message*>::iterator q = p->second.begin();
+    if (q != p->second.end()) {
+      return (*q)->get_recv_stamp();
+    }
+  }
+  return utime_t();
+}
+
 void IncomingQueue::queue(Message *m, int priority, bool hold_dq_lock)
 {
   Mutex::Locker l(lock);
