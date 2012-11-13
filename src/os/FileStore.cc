@@ -214,9 +214,12 @@ int FileStore::lfn_open(coll_t cid, const hobject_t& oid, int flags, mode_t mode
 	if (r < 0)
 	  return -errno;
       }
-      assert(!(fd_open.count(fd->get_fd())));
-      fd_open[fd->get_fd()] = fd;
+      map<int,FDRef>::iterator p = fd_open.find(fd->get_fd());
+      if (p == fd_open.end()) {
+	fd_open[fd->get_fd()] = fd;
+      }
       logger->inc(l_os_fd_cache_hit);
+      fd->get();
       return fd->get_fd();
     }
   }
@@ -273,6 +276,7 @@ int FileStore::lfn_open(coll_t cid, const hobject_t& oid, int flags, mode_t mode
     fd_cache.add(oid, fd);
     logger->inc(l_os_fd_cache_miss);
   }
+  fd->get();
   return fd->get_fd();
 
  fail:
@@ -299,7 +303,11 @@ void FileStore::lfn_close(int fd)
 {
   dout(10) << "lfn_close " << fd << dendl;
   Mutex::Locker l(lfn_cache_lock);
-  fd_open.erase(fd);
+  map<int,FDRef>::iterator p = fd_open.find(fd);
+  assert(p != fd_open.end());
+  if (p->second->put() == 0) {
+    fd_open.erase(p);
+  }
 }
 
 int FileStore::lfn_link(coll_t c, coll_t cid, const hobject_t& o) 

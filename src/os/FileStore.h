@@ -275,10 +275,22 @@ private:
   Mutex lfn_cache_lock;
   class FDHolder {
     int fd;
+    int ref;
   public:
-    FDHolder(int fd) : fd(fd) {}
-    ~FDHolder() { ::close(fd); }
-    int get_fd() { return fd; }
+    FDHolder(int fd) : fd(fd), ref(0) {}
+    ~FDHolder() {
+      ::close(fd);
+    }
+    int get_fd() {
+      return fd;
+    }
+    int get() {
+      return ++ref;
+    }
+    int put() {
+      assert(ref > 0);
+      return --ref;
+    }
   };
   typedef std::tr1::shared_ptr<FDHolder> FDRef;
   SimpleLRU<hobject_t, FDRef> fd_cache;
