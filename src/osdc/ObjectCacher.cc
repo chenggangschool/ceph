@@ -909,9 +909,16 @@ void ObjectCacher::trim(loff_t max_bytes, loff_t max_ob)
       break;
 
     ldout(cct, 10) << "trim trimming " << *ob << dendl;
-    close_object(ob);
+    // we definitely want to remove it from lru
+    ob_lru.lru_remove(ob);
+    // want to close it if there are no references to it
+    // and its not dirty_or_tx, otherwise, let release
+    // do the close
+    if(ob->can_close()) {
+      close_object(ob);
+    }
   }
-  
+
   ldout(cct, 10) << "trim finish:  max " << max_bytes << "  clean " << get_stat_clean()
 		 << ", objects: max " << max_ob << " current " << ob_lru.lru_get_size()
 		 << dendl;
