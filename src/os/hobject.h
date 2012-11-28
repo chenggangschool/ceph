@@ -57,6 +57,17 @@ public:
     pool(pool),
     key(soid.oid.name == key ? string() : key) {}
 
+  /// @return min hobject_t ret s.t. ret.hash == this->hash
+  hobject_t get_boundary() const {
+    hobject_t ret(*this);
+    ret.oid = string();
+    ret.snap = 0;
+    ret.pool = 0;
+    ret.nspace = string();
+    ret.key = string();
+    return ret;
+  }
+
   /* Do not use when a particular hash function is needed */
   explicit hobject_t(const sobject_t &o) :
     oid(o.oid), snap(o.snap), max(false), pool(-1) {
