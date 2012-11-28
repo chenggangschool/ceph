@@ -17,12 +17,10 @@
 #include <errno.h>
 #include <sys/fcntl.h>
 
-TEST(LibCephFS, ReaddirRCB) {
-  struct ceph_mount_info *cmount;
-  ASSERT_EQ(0, ceph_create(&cmount, NULL));
-  ASSERT_EQ(0, ceph_conf_read_file(cmount, NULL));
-  ASSERT_EQ(0, ceph_mount(cmount, "/"));
+/* Load fixtures */
+#include "test/libcephfs/test.h"
 
+TEST_F(MountedTest, ReaddirRCB) {
   char c_dir[256];
   sprintf(c_dir, "/readdir_r_cb_tests_%d", getpid());
   struct ceph_dir_result *dirp;
@@ -55,6 +53,4 @@ TEST(LibCephFS, ReaddirRCB) {
   ASSERT_EQ(5, ceph_getdnames(cmount, dirp, buf, 6));
   ASSERT_EQ(4, ceph_getdnames(cmount, dirp, buf, 6));
   ASSERT_LE(0, ceph_closedir(cmount, dirp));
-
-  ceph_shutdown(cmount);
 }
