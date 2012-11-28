@@ -903,6 +903,7 @@ bool Journaler::_is_readable()
   }
 
   uint64_t need = (sizeof(s)+s-read_buf.length());
+  ldout(cct, 10) << "_is_readable need " << need << " more bytes.  next entry is " << s << " bytes" << dendl;
   if (need > fetch_len) {
     ldout(cct, 10) << "_is_readable noting temp_fetch_len " << temp_fetch_len
 	     << " for len " << s << " entry" << dendl;
