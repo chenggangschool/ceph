@@ -17,10 +17,10 @@
 
 #include "messages/PaxosServiceMessage.h"
 #include "include/Context.h"
+#include "Paxos.h"
 #include <errno.h>
 
 class Monitor;
-class Paxos;
 
 /**
  * A Paxos Service is an abstraction that easily allows one to obtain an
@@ -102,6 +102,10 @@ protected:
       if (r == -ECANCELED)
 	return;
       ps->proposal_timer = 0;
+      if (!ps->paxos->is_active()) {
+        generic_dout(10) << "C_Propose paxos not active; return!" << dendl;
+	return;
+      }
       ps->propose_pending(); 
     }
   };
