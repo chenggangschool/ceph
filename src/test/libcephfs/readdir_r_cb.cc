@@ -20,7 +20,7 @@
 /* Load fixtures */
 #include "test/libcephfs/test.h"
 
-TEST_F(MountedTest, ReaddirRCB) {
+TEST_P(MountedTest, ReaddirRCB) {
   char c_dir[256];
   sprintf(c_dir, "/readdir_r_cb_tests_%d", getpid());
   struct ceph_dir_result *dirp;
