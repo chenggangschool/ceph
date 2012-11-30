@@ -128,5 +128,6 @@ int do_command(CephToolCtx *ctx,
 	       vector<string>& cmd, bufferlist& bl, bufferlist& rbl);
 int ceph_tool_messenger_shutdown();
 int ceph_tool_common_shutdown(CephToolCtx *ctx);
+int ceph_tool_do_admin_socket(string path, string cmd, std::ostream& output);
 
 #endif

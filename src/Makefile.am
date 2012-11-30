@@ -100,9 +100,8 @@ ceph_mds_CXXFLAGS = ${AM_CXXFLAGS}
 # admin tools
 ceph_SOURCES = \
 	tools/ceph.cc \
-	tools/common.cc \
 	mon/PGMap.cc
-ceph_LDADD = $(LIBGLOBAL_LDA) $(LIBEDIT_LIBS)
+ceph_LDADD = libcephtools.la
 ceph_CXXFLAGS = ${AM_CXXFLAGS}
 
 ceph_conf_SOURCES = ceph_conf.cc
@@ -288,6 +287,11 @@ BUILT_SOURCES =
 lib_LTLIBRARIES = 
 noinst_LTLIBRARIES = 
 noinst_LIBRARIES =
+
+# tools library
+libcephtools_la_SOURCES = tools/common.cc
+libcephtools_la_LIBADD = $(LIBGLOBAL_LDA) $(LIBEDIT_LIBS)
+noinst_LTLIBRARIES += libcephtools.la
 
 # libcephfs
 libcephfs_la_SOURCES = \
