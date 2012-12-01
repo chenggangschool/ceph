@@ -802,3 +802,17 @@ extern "C" CephContext *ceph_get_mount_context(struct ceph_mount_info *cmount)
 {
   return cmount->get_ceph_context();
 }
+
+extern "C" int ceph_get_fd_capabilities(struct ceph_mount_info *cmount, int fd)
+{
+  if (!cmount->is_mounted())
+    return -ENOTCONN;
+  return cmount->get_client()->get_caps_issued(fd);
+}
+
+extern "C" int ceph_get_file_capabilities(struct ceph_mount_info *cmount, const char *path)
+{
+  if (!cmount->is_mounted())
+    return -ENOTCONN;
+  return cmount->get_client()->get_caps_issued(path);
+}
