@@ -160,12 +160,36 @@ namespace librbd {
 	Mutex::Locker l(m_ictx->snap_lock);
 	Mutex::Locker l2(m_ictx->parent_lock);
 
-	// copyup the entire object up to the overlap point
-	ldout(m_ictx->cct, 20) << "reading from parent " << m_object_image_extents << dendl;
-	assert(m_object_image_extents.size());
+	/*
+	 * Parent may have disappeared; if so, recover by using
+	 * send_copyup() to send the original write req (the copyup
+	 * operation itself will be a no-op, since someone must have
+	 * populated the child object while we weren't looking).
+	 * Move to WRITE_FLAT state as we'll be done with the
+	 * operation once the null copyup completes.
+	 */
 
+	if (m_ictx->parent == NULL) {
+	  ldout(m_ictx->cct, 20) << "parent is gone; do null copyup " << dendl;
+	  m_state = LIBRBD_AIO_WRITE_FLAT;
+	  send_copyup();
+	  finished = false;
+	  break;
+	}
+
+	// If parent still exists, overlap might also have changed.
+	uint64_t newlen = m_ictx->prune_parent_extents(
+	  m_object_image_extents, m_ictx->parent_md.overlap);
+
+	// copyup the entire object up to the overlap point, if any
+	if (newlen != 0) {
+	  ldout(m_ictx->cct, 20) << "overlap " << m_ictx->parent_md.overlap << " newlen " << newlen << "image_extents" << m_object_image_extents << dendl;
+
+	  read_from_parent(m_object_image_extents);
+	} else {
+	  m_object_image_extents.clear();
+	}
 	m_state = LIBRBD_AIO_WRITE_COPYUP;
-	read_from_parent(m_object_image_extents);
 	finished = false;
 	break;
       }
