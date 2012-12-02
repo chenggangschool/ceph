@@ -843,8 +843,6 @@ static int do_import_from_stdin(librbd::RBD &rbd, librados::IoCtx& io_ctx,
   bufferptr p(len);
 
   while ((readlen = ::read(0, p.c_str(), len)) > 0) {
-    bufferlist bl;
-    bl.append(p);
     if ((file_pos + readlen) > cur_size) {
       cur_size *= 2;
       r = image.resize(cur_size);
@@ -853,10 +851,16 @@ static int do_import_from_stdin(librbd::RBD &rbd, librados::IoCtx& io_ctx,
 	return r;
       }
     }
-    r = image.write(file_pos, readlen, bl);
-    if (r < 0) {
-      cerr << "rbd: error writing to image block" << std::endl;
-      return r;
+    // if we read an integral number of image blocks of zeros, just seek
+    // for sparse images
+    if ((readlen % len) != 0 || !p.is_zero()) {
+      bufferlist bl;
+      bl.append(p);
+      r = image.write(file_pos, readlen, bl);
+      if (r < 0) {
+	cerr << "rbd: error writing to image block" << std::endl;
+	return r;
+      }
     }
     file_pos += readlen;
   }
