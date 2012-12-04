@@ -59,6 +59,7 @@ using ceph::crypto::MD5;
 #define RGW_MAX_CHUNK_SIZE	(512*1024)
 #define RGW_MAX_PENDING_CHUNKS  16
 #define RGW_MAX_PUT_SIZE        (5ULL*1024*1024*1024)
+#define RGW_MIN_MULTIPART_SIZE (5ULL*1024*1024)
 
 #define RGW_FORMAT_PLAIN        0
 #define RGW_FORMAT_XML          1
@@ -100,8 +101,9 @@ using ceph::crypto::MD5;
 #define ERR_INVALID_UTF8         2017
 #define ERR_UNPROCESSABLE_ENTITY 2018
 #define ERR_TOO_LARGE            2019
-#define ERR_TOO_MANY_BUCKETS     2020
-#define ERR_INVALID_REQUEST      2021
+#define ERR_TOO_SMALL            2020
+#define ERR_TOO_MANY_BUCKETS     2021
+#define ERR_INVALID_REQUEST      2022
 #define ERR_USER_SUSPENDED       2100
 #define ERR_INTERNAL_ERROR       2200
 
