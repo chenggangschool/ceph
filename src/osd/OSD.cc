@@ -175,7 +175,8 @@ OSDService::OSDService(OSD *osd) :
   map_cache_lock("OSDService::map_lock"),
   map_cache(g_conf->osd_map_cache_size),
   map_bl_cache(g_conf->osd_map_cache_size),
-  map_bl_inc_cache(g_conf->osd_map_cache_size)
+  map_bl_inc_cache(g_conf->osd_map_cache_size),
+  osd_evt_stream(new AdminStreamHook("OSDStream"))
 {}
 
 void OSDService::need_heartbeat_peer_update()
@@ -200,6 +201,10 @@ void OSDService::shutdown()
   watch_timer.shutdown();
   watch_lock.Unlock();
 
+  AdminSocket *admin_socket = osd->cct->get_admin_socket();
+  int r = admin_socket->unregister_stream("osd_events");
+  assert(r == 0);
+
   delete watch;
 }
 
@@ -208,6 +213,11 @@ void OSDService::init()
   reserver_finisher.start();
   watch_timer.init();
   watch = new Watch();
+  AdminSocket *admin_socket = osd->cct->get_admin_socket();
+  int r = admin_socket->register_stream("osd_events", osd_evt_stream.get(),
+					"json stream of osd events");
+  assert(r == 0);
+  osd->op_tracker.set_admin_stream_hook(osd_evt_stream.get());
 }
 
 ObjectStore *OSD::create_object_store(const std::string &dev, const std::string &jdev)

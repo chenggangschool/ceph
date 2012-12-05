@@ -107,6 +107,15 @@ void OpTracker::unregister_inflight_op(OpRequest *i)
   Mutex::Locker locker(ops_in_flight_lock);
   assert(i->xitem.get_list() == &ops_in_flight);
   utime_t now = ceph_clock_now(g_ceph_context);
+  if (dump) {
+    JSONFormatter jf(true);
+    jf.open_object_section("op_stats");
+    i->dump(now, &jf);
+    jf.close_section();
+    stringstream ss;
+    jf.flush(ss);
+    *dump << ss.str();
+  }
   i->xitem.remove_myself();
   i->request->clear_data();
   history.insert(now, i);

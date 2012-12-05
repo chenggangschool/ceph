@@ -24,6 +24,7 @@
 #include <tr1/memory>
 #include "common/TrackedOp.h"
 #include "osd/osd_types.h"
+#include "common/admin_socket.h"
 
 class OpRequest;
 class OpHistory {
@@ -50,9 +51,16 @@ class OpTracker {
   Mutex ops_in_flight_lock;
   xlist<OpRequest *> ops_in_flight;
   OpHistory history;
+  AdminStreamHook *dump;
 
 public:
-  OpTracker() : seq(0), ops_in_flight_lock("OpTracker mutex") {}
+  OpTracker() :
+    seq(0), ops_in_flight_lock("OpTracker mutex"),
+    dump(0) {}
+  void set_admin_stream_hook(AdminStreamHook *hook) {
+    Mutex::Locker locker(ops_in_flight_lock);
+    dump = hook;
+  }
   void dump_ops_in_flight(std::ostream& ss);
   void dump_historic_ops(std::ostream& ss);
   void register_inflight_op(xlist<OpRequest*>::item *i);

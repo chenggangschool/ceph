@@ -16,6 +16,7 @@
 #define CEPH_OSD_H
 
 #include "boost/tuple/tuple.hpp"
+#include "boost/scoped_ptr.hpp"
 
 #include "PG.h"
 
@@ -364,6 +365,9 @@ public:
 
   void init();
   void shutdown();
+
+  // Debug/perf streams
+  boost::scoped_ptr<AdminStreamHook> osd_evt_stream;
 
   OSDService(OSD *osd);
 };
